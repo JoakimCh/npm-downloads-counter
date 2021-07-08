@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /*
 Todo:
   Detect and report sudden popularity?
