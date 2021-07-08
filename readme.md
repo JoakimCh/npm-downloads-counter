@@ -6,10 +6,14 @@ I created this mainly because I wanted an easy way to monitor the popularity of 
 
 ## How to use
 To list all packages published by a user (e.g. to list packages published by yourself):
-`npx npm-downloads-counter npm_username`
+```bash
+npx npm-downloads-counter npm_username
+```
 
 To list all packages maintained by a user (a package can have several maintainers though):
-`npx npm-downloads-counter -m npm_username`
+```bash
+npx npm-downloads-counter -m npm_username
+```
 
 ## Example output:
 Please note that some text renders doesn't output the [unicode glyphs](https://en.wikipedia.org/wiki/Braille_Patterns) below in a monospaced format (but my terminal emulator does, and if yours doesn't you might want to get one that does).
