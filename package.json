@@ -1,18 +1,21 @@
 {
   "name": "npm-downloads-counter",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "author": "Joakim L. Christiansen (https://joakimch.github.io)",
   "license": "MIT",
   "type": "module",
   "main": "source/npm-downloads-counter.js",
-  "files": ["source/*"],
+  "files": [
+    "source/*"
+  ],
   "repository": "github:JoakimCh/npm-downloads-counter",
   "funding": "https://joakimch.github.io/funding.html",
-  "description": "This is a CLI tool (and an ES module) to output an overview of the (last 30 days) download activity of all the packages maintained (or published) by a certain NPM username.",
+  "description": "This is a CLI tool (and an ES module) to output an overview of the (last 30 days) download activity of all the packages maintained (or published) by a certain NPM username. It can also output a score overview.",
   "keywords": [
     "npm",
     "package",
     "downloads",
+    "score",
     "activity",
     "counter",
     "maintainer",

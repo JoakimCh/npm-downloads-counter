@@ -1,127 +1,118 @@
 #!/usr/bin/env node
-/*
-Todo:
-  Detect and report sudden popularity?
-*/
 
 import * as dc from './npm-downloads-counter.js'
 import * as n_path from 'path'
 import * as n_fs from 'fs'
+import * as n_os from 'os'
 import {fileURLToPath} from 'url'
 
-async function main({maintainerUsername, publisherUsername, range='last-month'}) {
-  if (!maintainerUsername && publisherUsername) maintainerUsername = publisherUsername
-  if (!maintainerUsername) throw Error('Please specify: {maintainerUsername}')
-  const downloadStat = new DownloadStat()
-  if (publisherUsername) console.log('Download count of packages published by "'+publisherUsername+'" the last 30 days:')
-  else console.log('Download count of packages maintained by "'+maintainerUsername+'" the last 30 days:')
-  const packageNames = (await dc.getPackages(maintainerUsername, publisherUsername)).map(package_ => package_.name)
-  const promiseLaunchers = [] // push functions which when executed returns a promise which downloads the stats
-  for (let i=0; i<packageNames.length; i+=128) { // do bulk queries (max 128 in one)
-    const packageList = packageNames.slice(i, i+128).filter(name => {
-      if (name.includes('@')) { // scoped packages can't be used in bulk queries
-        promiseLaunchers.push(() => dc.getLastDownloads(name, range)) // put them in single queries
-        return false // and filter them out from the bulk query
-      }
-      return true
-    })
-    promiseLaunchers.push(() => dc.getLastDownloads(packageList, range)) // add the bulk query
+const {data: dataDir, config: configDir} = getAppDirs('npm-downloads-counter')
+const options = { // merge default with custom config
+  // noColors: true, // no colors in CLI even if chalk is installed
+  // noLinks: true, // no links in CLI even if terminal-link is installed
+  // separateLines: true, // graph is on a separate line
+  // thinBars: true, // use thin bars in graph
+  displayDate: true, // date of when download-statistics was updated
+  logToTerminal: true, // output the result to terminal
+  climbersSummary: true, // summary of packages climbing the list
+  comparePrevious: true, // show position changes of packages
+  ...loadConfig(configDir+'config.json') // merge (overwriting options above)
+}
+if (options.slack) {
+  options.slack = { // Slack only options
+    // token: 'xoxb-XXXX-XXXX', // the much needed Web API token
+    // channel: 'npm-downloads-counter', // which channel to post to, name or id
+    // username: 'npm-downloads-counter', // custom username for message
+    // icon_emoji: ':bar_chart:', // custom icon for message
+    // noScores: true, // do not push notifications about scores
+    // onlyUsername: 'username', // only push notifications when checking this username
+    thinBars: true, // use thin bars in graph
+    separateLines: true, // graph is on a separate line
+    ...options.slack, // merge (overwriting options above)
+    noColors: true, // not compatible with Slack
+    noLinks: true // not compatible with Slack
   }
-  const results = await allSettledQueued(promiseLaunchers, 5) // max 5 simultaneous downloads
-  for (const result of results) {
-    if (result.status == 'fulfilled') {
-      if (Array.isArray(result.value)) {
-        for (const {packageName, dailyDownloads} of result.value) {
-          downloadStat.add(packageName, dailyDownloads)
+}
+
+if (process.argv.length < 3) {
+  console.error('No arguments supplied. Read the documentation below for help.\n')
+  outputHelp()
+} else {
+  /* Some quick and very simple parsing of args here, mainly to avoid adding a dependency for something which is simple enough to implement myself. For more advanced CLI tools you probably doesn't want to do this... */
+  let optionsBeforeDefault = false, queryMaintainer = false
+  const args = process.argv.slice(2)
+  loop: for (let arg; arg = args.shift();) {
+    switch (arg) {
+      default: // should be username // [-m] username
+        if (!optionsBeforeDefault && process.argv.length != 3) {
+          console.error('Unrecognized option: '+arg+'. Read the documentation below for help.\n')
+          outputHelp(); break loop
         }
-      } else {
-        downloadStat.add(result.value.packageName, result.value.dailyDownloads)
-      }
-    } else {
-      console.error('Concurrent download promise:', result)
-    }
-  }
-  downloadStat.sort()
-  for (const stat of downloadStat.all()) {
-    drawLastDownloads(stat)
-  }
-}
-
-async function drawLastDownloads({packageName, totalDownloads, dailyDownloads, dailyMin, dailyMax}) {
-  let pValue = 0, pChar
-  function getBarChar(value) {
-    const barEven = '  ⣀ ⣤ ⣶ ⣿'
-    const barOddL = ' ⢀ ⣠ ⣴ ⣾'
-    const barOddR = ' ⢀ ⣄ ⣦ ⣷'
-    let remappedValue
-    if (dailyMax <= 8) remappedValue = value
-    else remappedValue = Math.ceil(8 * (value - dailyMin) / (dailyMax - dailyMin)) // 0 to 8
-    if (remappedValue % 2) { // odd
-      if (pValue < value) return barOddL[remappedValue]
-      if (pValue > value) return barOddR[remappedValue]
-      if (pChar) return pChar // if same value; repeat last char
-    } else { // even
-      return barEven[remappedValue]
-    }
-  }
-  let line = ''
-  for (const count of dailyDownloads) {
-    pChar = getBarChar(count)
-    line += pChar
-    pValue = count
-  }
-  console.log('|'+line+'| '+`${packageName} ${dailyMin}-${dailyMax} (${totalDownloads})`)
-}
-
-class DownloadStat {
-  #packages = []
-  add(packageName, dailyDownloads) {
-    let dailyMin = Number.MAX_SAFE_INTEGER, dailyMax = 0, totalDownloads = 0
-    for (const count of dailyDownloads) {
-      totalDownloads += count
-      if (count > dailyMax) dailyMax = count
-      if (count < dailyMin) dailyMin = count
-    }
-    this.#packages.push({packageName, totalDownloads, dailyDownloads, dailyMin, dailyMax})
-  }
-  sort() {
-    this.#packages.sort((a, b) => b.totalDownloads - a.totalDownloads)
-  }
-  all() {
-    return this.#packages
-  }
-}
-
-/**
- * For when you want to await lots of promises but not launch them all at once. This function allows you to set a max concurrency to limit how many promises can be launched (and awaited) at the same time. This is a very good way to limit concurrent HTTP requests, etc.
- * @param {Array.<Function>} promiseLaunchers An array with functions that launches and returns a promise.
- * @param {number} [maxConcurrency=1] How many promises that will be allowed to run at the same time.
- * @returns {Promise.<Array.<object>>} An array with objects equal to the result of `Promise.allSettled`.
- */
-async function allSettledQueued(promiseLaunchers, maxConcurrency = 1) {
-  const result = [], workerPromises = []
-
-  for (let i=0; i<maxConcurrency; i++) {
-    workerPromises.push(new Promise(async resolve => {
-      while (promiseLaunchers.length) {
-        try {
-          result.push({
-            status: 'fulfilled',
-            value: await promiseLaunchers.pop()() // pop laucher, execute it and await returned promise
-          })
-        } catch (error) {
-          result.push({
-            status: 'rejected',
-            reason: error
-          })
+        const username = arg
+        const [downloadStatistics, prevDownStats] = await downloadStats(queryMaintainer, username)
+        let text = downloadStatistics.drawDownloadStats(options, prevDownStats) // it will check that date is not the same
+        if (options.logToTerminal) console.log(text)
+        if (options.slack && downloadStatistics.date != prevDownStats?.date) {
+          if (options.slack.onlyUsername && options.slack.onlyUsername != username) break loop
+          if (options.slack) text = downloadStatistics.drawDownloadStats({
+            ...options,
+            ...options.slack
+          }, prevDownStats)
+          await dc.pushToSlack({...options.slack, text})
         }
-      }
-      resolve()
-    }))
+      break loop
+      case '--score': { // [-m] --score username [sortBy=final]
+        const username = args.shift()
+        if (!username) throw Error('No username following --score')
+        const [downloadStatistics, prevScoreStats] = await downloadStats(queryMaintainer, username, true)
+        const sortBy = args.shift() || 'final'
+        downloadStatistics.sort(sortBy)
+        prevScoreStats?.sort(sortBy)
+        let text = downloadStatistics.drawScoreStats(sortBy, options, prevScoreStats)
+        if (options.logToTerminal) console.log(text)
+        if (options.slack && !options.slack.noScores && downloadStatistics.date != prevScoreStats?.date) {
+          if (options.slack.onlyUsername && options.slack.onlyUsername != username) break loop
+          if (options.slack) text = downloadStatistics.drawScoreStats(sortBy, {
+            ...options,
+            ...options.slack
+          }, prevScoreStats)
+          await dc.pushToSlack({...options.slack, text})
+        }
+      } break loop
+      case '-m': queryMaintainer = true; break
+      case '--help': outputHelp(); break loop
+      case '-v':
+      case '--version': {
+        const scriptDirectory = n_path.dirname(fileURLToPath(import.meta.url))
+        console.log('version:', JSON.parse(n_fs.readFileSync(scriptDirectory+'/../package.json', 'utf8')).version)
+      } break loop
+      case '--paths': {
+        const {fileURLToPath} = await import('url')
+        const scriptPath = fileURLToPath(import.meta.url)
+        console.log({
+          dataDir,
+          configDir,
+          scriptPath
+        })
+      } break loop
+    }
+    optionsBeforeDefault = true
   }
+}
 
-  await Promise.allSettled(workerPromises)
-  return result
+async function downloadStats(queryMaintainer, username, scoreOnly = false) {
+  let fileName = scoreOnly ? 'prevScoreStats_' : 'prevDownStats_'
+  fileName += queryMaintainer ? 'maintainer_' : 'publisher_'
+  fileName += username+'.json'
+  const query = queryMaintainer ? {maintainerUsername: username} : {publisherUsername: username}
+  if (scoreOnly) query.withoutDownloads = true
+  const prevDownStats = new dc.PackageStatistics().loadFromDisk(dataDir+fileName) // undefined if nothing
+  const downloadStatistics = await dc.getStatistics(query)
+  if (options.comparePrevious && downloadStatistics.date != prevDownStats?.date) { // also save new if date is different
+    n_fs.mkdirSync(dataDir, {recursive: true}) // create the data dir if it doesn't exist
+    downloadStatistics.saveToDisk(dataDir+fileName)
+  }
+  return [downloadStatistics, prevDownStats]
 }
 
 function outputHelp() {
@@ -129,38 +120,49 @@ function outputHelp() {
 `Documentation for npm-downloads-counter CLI:
 
 Usage:
-  npm-downloads-counter options npm-username
+  npm-downloads-counter [options] npm-username
+
+Example:
+  npm-downloads-counter -m --score joakimch
+  - To view score statistics of packages where joakimch is one of the maintainers.
 
 Options:
   [default]      List any packages where this user is the publisher.
   -m             List any packages where this user is a maintainer.
+  --score        Output score statistics instead of download statistics.
   --help         Output this documentation.
-  -v, --version  Display version number.`)
+  -v, --version  Display version number.
+  --paths        Output a list of paths possibly used by the program.
+
+Check out the online documentation for more info:
+https://github.com/JoakimCh/npm-downloads-counter#readme
+`)
 }
 
-if (process.argv.length < 3) {
-  console.error('No arguments supplied. Read the documentation below for help.\n')
-  outputHelp()
-} else {
-  let optionsBeforeDefault = false, queryMaintainer = false
-  for (const arg of process.argv.slice(2)) {
-    switch (arg) {
-      default: // should be username
-        if (!optionsBeforeDefault && process.argv.length != 3) {
-          console.error('Unrecognized option: '+arg+'. Read the documentation below for help.\n')
-          outputHelp(); process.exit()
-        }
-        if (queryMaintainer) main({maintainerUsername: arg})
-        else main({publisherUsername: arg})
-      break
-      case '-m': queryMaintainer = true; break
-      case '--help': outputHelp(); break
-      case '-v':
-      case '--version': {
-        const scriptDirectory = n_path.dirname(fileURLToPath(import.meta.url))
-        console.log('version:', JSON.parse(n_fs.readFileSync(scriptDirectory+'/package.json', 'utf8')).version)
-      } break
-    }
-    optionsBeforeDefault = true
+function loadConfig(path) {
+  let json
+  try {json = n_fs.readFileSync(path, 'utf-8')} catch {return {}}
+  try {return JSON.parse(json)} catch (error) {
+    console.error('Error in '+path+':')
+    throw error
+  }
+}
+
+function getAppDirs(appTitle) {
+  const dir = {
+    home: n_os.homedir()+'/'
+  }
+  switch (n_os.platform()) {
+    case 'darwin': // I've seen lots of software use the "Linux standard" also for macOS
+    case 'linux':
+      dir.config = dir.home+'.config/'+appTitle+'/'
+      dir.data   = dir.home+'.local/share/'+appTitle+'/'
+      dir.cache  = dir.home+'.cache/'+appTitle+'/'
+    return dir
+    case 'win32': // Windows doesn't care if you use /
+      dir.config = dir.home+'AppData/Roaming/'+appTitle+'/'
+      dir.data   = dir.home+'AppData/Local/'+appTitle+'/Data/'
+      dir.cache  = dir.home+'AppData/Local/'+appTitle+'/Cache/'
+    return dir
   }
 }
