@@ -44,7 +44,7 @@ if (process.argv.length < 3) {
   loop: for (let arg; arg = args.shift();) {
     switch (arg) {
       default: // should be username // [-m] username
-        if (!optionsBeforeDefault && process.argv.length != 3) {
+        if (arg.startsWith('-') || (!optionsBeforeDefault && process.argv.length != 3)) {
           console.error('Unrecognized option: '+arg+'. Read the documentation below for help.\n')
           outputHelp(); break loop
         }
@@ -88,7 +88,8 @@ if (process.argv.length < 3) {
       } break loop
       case '--paths': {
         const {fileURLToPath} = await import('url')
-        const scriptPath = fileURLToPath(import.meta.url)
+        let scriptPath = fileURLToPath(import.meta.url)
+        if (n_os.platform() == 'win32') scriptPath = scriptPath.replaceAll('\\', '/')
         console.log({
           dataDir,
           configDir,
@@ -159,7 +160,8 @@ function getAppDirs(appTitle) {
       dir.data   = dir.home+'.local/share/'+appTitle+'/'
       dir.cache  = dir.home+'.cache/'+appTitle+'/'
     return dir
-    case 'win32': // Windows doesn't care if you use /
+    case 'win32': // Windows doesn't care if you use / or mix it with \
+      dir.home   = dir.home.replaceAll('\\', '/') // for consistency
       dir.config = dir.home+'AppData/Roaming/'+appTitle+'/'
       dir.data   = dir.home+'AppData/Local/'+appTitle+'/Data/'
       dir.cache  = dir.home+'AppData/Local/'+appTitle+'/Cache/'

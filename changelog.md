@@ -2,6 +2,14 @@
 
 Changelog for the [npm-downloads-counter](https://www.npmjs.com/package/npm-downloads-counter) NPM package.
 
+## v2.0.1 - 2021.07.26:
+
+### Changed
+
+* Updated the readme with details on how to get colors, etc...
+* The output of --paths on Windows to only use forward slashes (Windows is compatible with them yes).
+
+
 ## v2.0.0 - 2021.07.23:
 
 Some new features. E.g. support for Slack notifications and the output of score statistics.

@@ -1,6 +1,6 @@
 {
   "name": "npm-downloads-counter",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "author": "Joakim L. Christiansen (https://joakimch.github.io)",
   "license": "MIT",
   "type": "module",

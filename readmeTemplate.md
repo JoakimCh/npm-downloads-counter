@@ -10,21 +10,49 @@ I created this mainly because I wanted an easy way to monitor the popularity of 
 
 If you find this useful then please consider helping me out (I'm jobless and sick). For more information visit my [GitHub profile](https://github.com/JoakimCh).
 
+## Cross-platform support
+
+I've tested it successfully on Linux (my main system), Windows and macOS.
+
+##### Windows usage notes
+
+For the unicode output of this program to display correctly you'll need to use the new [Windows Terminal](https://www.microsoft.com/en-us/p/windows-terminal/9n0dx20hk701).
+
+## Installing
+
+Install it globally like this:
+```bash
+npm install -g npm-downloads-counter
+```
+Optionally install [chalk](https://www.npmjs.com/package/chalk) to enable colors in CLI:
+```bash
+npm i -g chalk
+```
+Optionally install [terminal-link](https://www.npmjs.com/package/terminal-link) to enable links in CLI:
+```bash
+npm i -g terminal-link
+```
+
 ## How to use
 
 To list all packages published by a user (e.g. to list packages published by yourself):
 ```bash
-npx npm-downloads-counter npm_username
+npm-downloads-counter npm_username
 ```
 
 To list all packages maintained by a user (a package can have several maintainers though):
 ```bash
-npx npm-downloads-counter -m npm_username
+npm-downloads-counter -m npm_username
 ```
 
 To list (only) score statistics:
+```bash
+npm-downloads-counter --score npm_username
 ```
-npx npm-downloads-counter --score npm_username
+
+You can also run it without installing it using [npx](https://docs.npmjs.com/cli/v7/commands/npx), but then it can't have colors or links in the CLI:
+```bash
+npx npm-downloads-counter joakimch
 ```
 
 ## Example output (download stats)
