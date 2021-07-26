@@ -2,6 +2,13 @@
 
 Changelog for the [npm-downloads-counter](https://www.npmjs.com/package/npm-downloads-counter) NPM package.
 
+## v2.0.2 - 2021.07.26:
+
+### Fixed
+
+* Removed some debug output mixed with the output of --score.
+
+
 ## v2.0.1 - 2021.07.26:
 
 ### Changed

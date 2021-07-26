@@ -307,7 +307,6 @@ export class PackageStatistics {
       const positionChange = pPos != undefined ? i - pPos : undefined
       const pFinal = prevScoreStats?.date != this.date ? prevScoreStats?.getPackageStats(this.#stats[i].packageName).score.final : undefined
       const finalDiff = pFinal != undefined ? this.#stats[i].score.final - pFinal : undefined
-      if (finalDiff) console.log(this.#stats[i], prevScoreStats.getPackageStats(this.#stats[i].packageName))
       if (positionChange < 0) climbers.push([this.#stats[i].packageName, positionChange])
       text += this.#drawScoreStat({...this.#stats[i], positionChange, finalDiff}, options) + '\n'
     }
