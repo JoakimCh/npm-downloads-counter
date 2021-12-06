@@ -87,8 +87,10 @@ export async function getLastDownloads(packages, range) {
   if (wrapIt) {const r = {}; r[queryResult.package] = queryResult; queryResult = r}
   const result = []
   for (const package_ of packages) {
-    const dailyDownloads = queryResult[package_.name].downloads.map(o => o.downloads)
-    result.push({package: package_, dailyDownloads, endDate: queryResult[package_.name].end})
+    const packageDetails = queryResult[package_.name]
+    if (packageDetails == null) continue // a newly submitted package without stats yet
+    const dailyDownloads = packageDetails.downloads.map(o => o.downloads)
+    result.push({package: package_, dailyDownloads, endDate: packageDetails.end})
   }
   return result
 }

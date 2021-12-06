@@ -2,6 +2,13 @@
 
 Changelog for the [npm-downloads-counter](https://www.npmjs.com/package/npm-downloads-counter) NPM package.
 
+## v2.0.3 - 2021.12.06:
+
+### Fixed
+
+* Fixed crash when a package without stats (newly published) were discovered.
+
+
 ## v2.0.2 - 2021.07.26:
 
 ### Fixed
